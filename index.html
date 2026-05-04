@@ -127,14 +127,14 @@ html,body{width:100%;height:100%;overflow:hidden;
 
 /* ── SCRATCH PAD ── */
 .scratch-zone{flex:1;min-height:0;display:flex;flex-direction:column;padding:6px 12px 4px;}
-.scratch-bar{display:flex;align-items:center;gap:8px;padding:0 2px;margin-bottom:5px;flex-shrink:0;}
-.scratch-lbl{color:#999;font-size:.75rem;}
-.cb{width:22px;height:22px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;transition:all .2s;}
+.scratch-bar{display:flex;align-items:center;gap:6px;padding:0 2px;margin-bottom:5px;flex-shrink:0;flex-wrap:nowrap;}
+.scratch-lbl{color:#999;font-size:.72rem;white-space:nowrap;flex-shrink:0;}
+.cb{width:20px;height:20px;border-radius:50%;border:2.5px solid transparent;cursor:pointer;transition:all .2s;flex-shrink:0;}
 .cb.on{border-color:#fff;transform:scale(1.25);}
-.clr-btn{padding:4px 12px;background:rgba(255,255,255,.1);
-  border:1px solid rgba(255,255,255,.25);border-radius:6px;color:#bbb;font-size:.75rem;cursor:pointer;}
-.clr-btn.on{background:rgba(255,200,50,.25);border-color:rgba(255,200,50,.7);color:#ffd36e;}
-.clr-btns{margin-left:auto;display:flex;gap:6px;}
+.clr-btn{padding:4px 10px;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.25);border-radius:6px;color:#ccc;font-size:.75rem;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.clr-btn.on{background:rgba(255,200,50,.3);border-color:rgba(255,200,50,.8);color:#ffd36e;}
+.clr-btns{margin-left:auto;display:flex;gap:5px;flex-shrink:0;}
 #scratch{flex:1;min-height:0;
   background:rgba(255,255,255,.055);border:1.5px dashed rgba(255,255,255,.18);
   border-radius:10px;cursor:crosshair;touch-action:none;display:block;width:100%;}
@@ -158,6 +158,15 @@ html,body{width:100%;height:100%;overflow:hidden;
 .cfm-idle{background:linear-gradient(135deg,#1aa67a,#15806b);}
 .cfm-next{background:linear-gradient(135deg,#f4a017,#d4860f);}
 .cfm-btn:not(:disabled):active{transform:scale(.97);}
+
+/* ── SOLUTION BOX ── */
+#solBox{display:none;margin:6px 0 0;padding:10px 14px;
+  background:rgba(30,60,100,.85);border:1.5px solid rgba(100,180,255,.35);
+  border-radius:10px;font-size:.82rem;color:#c8e0ff;line-height:1.7;}
+#solBox.show{display:block;}
+#solBox .sol-title{color:#ffd36e;font-weight:700;font-size:.88rem;margin-bottom:4px;}
+#solBox .sol-step{font-family:monospace;font-size:.85rem;color:#a8d8ff;white-space:pre-wrap;}
+#solBox .sol-ans{color:#7effa0;font-weight:700;margin-top:4px;}
 
 /* ── FEEDBACK ── */
 #fb{position:fixed;inset:0;z-index:200;pointer-events:none;
@@ -250,11 +259,12 @@ html,body{width:100%;height:100%;overflow:hidden;
 <!-- MAP -->
 <div class="sc" id="sm">
   <div class="mhdr">
-    <button class="bk" onclick="show('sw')">← กลับ</button>
+    <button class="bk" onclick="switchPlayer()">🔄 เปลี่ยนผู้เล่น</button>
     <div class="mhdr-title">🗺️ แผนที่ อีสต์บลู</div>
     <div class="mhdr-player" id="mpPlayer"></div>
     <button class="mu" id="muBtn" onclick="togMusic()">🔊</button>
   </div>
+  <div id="mpScore" style="text-align:center;color:var(--gold2);font-size:.82rem;padding:2px 0 4px;letter-spacing:.5px;"></div>
   <div class="map-list" id="mapList"></div>
 </div>
 
@@ -294,11 +304,16 @@ html,body{width:100%;height:100%;overflow:hidden;
 
   <div class="q-area">
     <div class="q-text" id="qText">...</div>
+    <div id="solBox">
+      <div class="sol-title">💡 วิธีคิด</div>
+      <div class="sol-step" id="solStep"></div>
+      <div class="sol-ans" id="solAns"></div>
+    </div>
   </div>
 
   <div class="scratch-zone">
     <div class="scratch-bar">
-      <span class="scratch-lbl">✏️ พื้นที่ทดเลข</span>
+      <span class="scratch-lbl">✏️ ทดเลข</span>
       <button class="cb on" style="background:#fff" data-c="#fff" onclick="setC(this)"></button>
       <button class="cb" style="background:#4fc3f7" data-c="#4fc3f7" onclick="setC(this)"></button>
       <button class="cb" style="background:#f06292" data-c="#f06292" onclick="setC(this)"></button>
@@ -362,7 +377,8 @@ const G={
   chSc:0,totSc:0,
   done:Array(7).fill(false),
   stars:Array(7).fill(0),
-  qs:[],sel:null,phase:'idle', // idle|sel|ans
+  bestSc:Array(7).fill(0),   // คะแนนสูงสุดต่อด่าน
+  qs:[],sel:null,phase:'idle',
   mOn:true
 };
 
@@ -372,7 +388,7 @@ const G={
 const CH=[
   {n:'🏝️ หมู่บ้านฟูชา',sub:'ลูฟี่ & แชงค์ส',ico:'🏝️',diff:'⭐',
    qt:['a3','s3','m1','a3','s3','a3','m1','s3','a4','m1'],
-   ctx:['ลูฟี่','แชงค์ส','โจรภูเขา','หมู่บ้านฟูชา','จ้าวทะเล','เบรี','กรัม','เมตร','ปลา','เสบียง'],
+   ctx:['ลูฟี่','แชงค์ส','โจรภูเขา','หมู่บ้านฟูชา','จ้าวทะเล','เบรี','กิโลกรัม','กิโลเมตร','ปลา','เสบียง'],
    story:`<strong>ลูฟี่</strong> เด็กหนุ่มผู้ฝันอยากเป็นราชาโจรสลัด ประกาศก้องต่อหน้า <strong>แชงค์ส</strong> ว่าจะออกทะเลและเป็นราชาโจรสลัดให้ได้! แชงค์สหัวเราะร่วนพร้อมล้อเลียนเจ้าหนูยางยืดที่ว่ายน้ำไม่ได้
 
 วันหนึ่งเหตุการณ์ไม่คาดฝันเกิดขึ้น เมื่อกลุ่ม<strong>โจรภูเขา</strong>บุกมาที่บาร์ของมักกิ้นะ ลูฟี่ถูกโยนลงน้ำกลางทะเล <strong>จ้าวทะเล</strong> สัตว์ร้ายขนาดยักษ์พุ่งเข้าจู่โจม! แชงค์สกระโดดช่วยลูฟี่ไว้ได้ทัน แต่ต้องแลกด้วย <strong>แขนซ้าย</strong> ที่สูญเสียไป
@@ -383,7 +399,7 @@ const CH=[
   },
   {n:'⚓ เชลล์สทาวน์',sub:'โซโร vs มอร์แกน',ico:'⚓',diff:'⭐⭐',
    qt:['a4','s4','m1','a4','s3','m2','a4','s4','m1','a3'],
-   ctx:['ลูฟี่','โซโร','มอร์แกน','เลเมปโป','ฐานทัพเรือ','เบรี','กรัม','นัด','ดาบ','ทหาร'],
+   ctx:['ลูฟี่','โซโร','มอร์แกน','เชลล์สทาวน์','เลเมปโป','เบรี','กิโลกรัม','เมตร','ดาบ','กระสุน'],
    story:`<strong>ลูฟี่</strong>เดินทางมาถึงฐานทัพเรือเชลล์สทาวน์ ที่นี่เขาได้ยินข่าวลือเกี่ยวกับ <strong>โรโรโนอา โซโร</strong> นักล่าโจรสลัดสุดโหดที่ถูกมัดไว้กลางลานประหาร!
 
 <strong>โซโร</strong>ยอมถูกจับเพื่อปกป้องเด็กหญิงผู้หนึ่งจากความเอาแต่ใจของ <strong>เลเมปโป</strong> ลูกชายจอมแสบ ฐานทัพนี้ปกครองด้วย <strong>มอร์แกน มือขวาน</strong> ที่บังคับให้ทหารสร้างรูปปั้นยักษ์ของตนเอง
@@ -394,7 +410,7 @@ const CH=[
   },
   {n:'🍊 ออเรนจ์ทาวน์',sub:'นามิ vs บากี้',ico:'🍊',diff:'⭐⭐',
    qt:['a4','s4','m2','a4','s4','m2','a5','s4','m2','a4'],
-   ctx:['นามิ','บากี้','ลูฟี่','ชูชู','ออเรนจ์ทาวน์','เบรี','กรัม','นัด','แผนที่','สมบัติ'],
+   ctx:['นามิ','บากี้','ลูฟี่','ออเรนจ์ทาวน์','ชูชู','เบรี','กิโลกรัม','กิโลเมตร','แผนที่','สมบัติ'],
    story:`ลูฟี่และโซโรเดินทางมาถึงเกาะที่มีเสียงปืนใหญ่ดังสนั่น <strong>บากี้ โจรสลัดตัวตลก</strong> ยึดเมืองออเรนจ์ทาวน์ ทำให้ชาวบ้านต้องหนีไปซ่อนตัวบนเนินเขา
 
 ที่นี่พวกเขาพบ <strong>นามิ</strong> เด็กสาวนักเดินเรือที่กำลังขโมยสมบัติจากบากี้อยู่ นามิเกลียดชังโจรสลัดแต่กลับเข้าร่วมทีมชั่วคราว
@@ -405,7 +421,7 @@ const CH=[
   },
   {n:'🏹 ไซรัปวิลเลจ',sub:'อุซซัป vs คาปเตนคูโร',ico:'🏹',diff:'⭐⭐⭐',
    qt:['a4','s4','m2','d1','a5','s4','m2','d1','a4','s5'],
-   ctx:['อุซซัป','คายะ','คาปเตนคูโร','ไซรัปวิลเลจ','โกอิ้งแมรี่','เบรี','กรัม','นัด','น้ำมัน','บาท'],
+   ctx:['อุซซัป','คายะ','คาปเตนคูโร','ไซรัปวิลเลจ','โกอิ้งแมรี่','เบรี','กิโลกรัม','ไมล์ทะเล','น้ำมัน','เสบียง'],
    story:`เรือเล็กของลูฟี่มาถึงหมู่บ้านไซรัป ที่นี่มี <strong>อุซซัป</strong> เด็กหนุ่มจอมโกหกที่ชอบวิ่งตะโกนว่า "โจรสลัดมาแล้ว!" เพื่อให้ <strong>คุณหนูคายะ</strong> ได้หัวเราะ
 
 แต่ความจริงที่เขาค้นพบกลับน่ากลัว — <strong>คาปเตนคูโร</strong> โจรสลัดจอมเจ้าเล่ห์ปลอมตัวเป็นผู้ดูแลบ้าน เพื่อขโมยมรดกและสังหารคายะ!
@@ -416,7 +432,7 @@ const CH=[
   },
   {n:'🍳 บาราตีเอ',sub:'แซนจิ vs ดอน ครีค',ico:'🍳',diff:'⭐⭐⭐',
    qt:['a5','s5','m2','d1','a5','s5','m3','d1','a5','s5'],
-   ctx:['แซนจิ','ดอน ครีค','มิฮอว์ค','บาราตีเอ','ลูฟี่','เบรี','กรัม','จาน','บาท','หน่วย'],
+   ctx:['แซนจิ','ดอน ครีค','มิฮอว์ค','บาราตีเอ','ลูฟี่','เบรี','กิโลกรัม','ไมล์ทะเล','จาน','วัตถุดิบ'],
    story:`ท่ามกลางท้องทะเลกว้าง มีอาคารรูปปลาขนาดยักษ์ลอยลำอยู่ นั่นคือ <strong>บาราตีเอ</strong> ร้านอาหารลอยน้ำในตำนาน!
 
 ลูฟี่มาที่นี่เพื่อหา <strong>แซนจิ</strong> กุ๊กหนุ่มฝีมือเลิศผู้มีหัวใจที่ไม่ยอมให้ใครหิวโหย แต่ความวุ่นวายเกิดขึ้นเมื่อกองเรือของ <strong>ดอน ครีค</strong> มายึดบาราตีเอ!
@@ -427,7 +443,7 @@ const CH=[
   },
   {n:'🌊 โคโคยาชิ',sub:'นามิ vs อาร์ลอง',ico:'🌊',diff:'⭐⭐⭐⭐',
    qt:['a5','s5','m3','d2','a5','s5','m3','d2','a5','s5'],
-   ctx:['นามิ','อาร์ลอง','เบลเมล','โคโคยาชิ','ลูฟี่','เบรี','กรัม','แผนที่','ส้ม','บาท'],
+   ctx:['นามิ','อาร์ลอง','เบลเมล','โคโคยาชิ','ลูฟี่','เบรี','กิโลกรัม','ไมล์ทะเล','ส้ม','เสบียง'],
    story:`<strong>นามิ</strong>หนีไปพร้อมเรือแมรี่ ลูฟี่และพวกตามมาจนถึงหมู่บ้านโคโคยาชิ ที่นั่นพวกเขาค้นพบความจริงอันเจ็บปวด
 
 นามิต้องสะสมเงิน 100 ล้านเบรีเพื่อซื้อหมู่บ้านคืนจาก <strong>อาร์ลอง</strong> มนุษย์ปลาผู้โหดร้าย แต่อาร์ลองกลับสั่งให้ทหารเรือมายึดเงินที่นามิสะสมมาตลอด 8 ปี!
@@ -438,7 +454,7 @@ const CH=[
   },
   {n:'⚡ โล้คทาวน์',sub:'สโมเกอร์ & ตอนจบอีสต์บลู',ico:'⚡',diff:'⭐⭐⭐⭐⭐',
    qt:['a5','s5','m3','d2','a5','s5','m4','d2','a5','s5'],
-   ctx:['ลูฟี่','สโมเกอร์','บากี้','โล้คทาวน์','โรเจอร์','เบรี','กรัม','โวลต์','นาที','บาท'],
+   ctx:['ลูฟี่','สโมเกอร์','บากี้','โล้คทาวน์','โรเจอร์','เบรี','กิโลกรัม','ไมล์ทะเล','ลัง','สมบัติ'],
    story:`เป้าหมายสุดท้ายของอีสต์บลูคือ <strong>โล้คทาวน์</strong> เมืองที่ราชาโจรสลัด <strong>โกล ดี โรเจอร์</strong> ถูกประหารชีวิต ลูฟี่มาที่นี่เพื่อดูแท่นประหารจุดเริ่มต้นของยุคโจรสลัด!
 
 แต่เขาต้องเผชิญหน้ากับ <strong>ผู้พันสโมเกอร์</strong> ผู้มีพลังควันที่ไม่เคยปล่อยให้โจรสลัดหนีรอดได้ และยังถูก <strong>บากี้</strong> กับ <strong>อัลบีดา</strong> ตามล่าอีกด้วย!
@@ -455,66 +471,70 @@ const CH=[
 function R(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
 function fmt(n){return n.toLocaleString('th-TH');}
 
-function genA(d,ci){ // addition d digits
+function genA(d,ci){
   const lo=Math.pow(10,d-1),hi=Math.pow(10,d)-1;
   const a=R(lo,hi-100),b=R(100,Math.min(hi-a,Math.floor(hi*.6)));
   const ans=a+b;
   const c=CH[ci].ctx;
   const ts=[
-    `${c[0]}มีเงิน ${fmt(a)} ${c[5]} และได้รับเพิ่มอีก ${fmt(b)} ${c[5]} รวมมีเงินกี่${c[5]}?`,
-    `ใน${c[3]}มีคน ${fmt(a)} คน มีคนมาเพิ่มอีก ${fmt(b)} คน รวมมีทั้งหมดกี่คน?`,
-    `${c[0]}สะสม${c[9]} ${fmt(a)} ${c[6]} ${c[1]}เพิ่มให้อีก ${fmt(b)} ${c[6]} รวมมีกี่${c[6]}?`,
-    `เรือลำแรกบรรทุก${c[9]} ${fmt(a)} ${c[6]} อีกลำบรรทุก ${fmt(b)} ${c[6]} รวมมีกี่${c[6]}?`,
-    `${c[0]}เดินทาง ${fmt(a)} ${c[7]} แล้วเดินต่ออีก ${fmt(b)} ${c[7]} รวมระยะทางกี่${c[7]}?`,
+    `${c[0]}นับเงินในกระเป๋าได้ ${fmt(a)} ${c[5]} แล้วพบอีกกองหนึ่งใต้เตียงมีอยู่ ${fmt(b)} ${c[5]} ตอนนี้มีเงินอยู่กี่${c[5]}?`,
+    `เรือออกเดินทางจากท่าแรก ${fmt(a)} ${c[7]} จากนั้นเบี่ยงเส้นทางอีก ${fmt(b)} ${c[7]} เข็มทิศบอกว่าเดินทางมาแล้วกี่${c[7]}?`,
+    `${c[3]}มีคนอยู่ ${fmt(a)} คน ข้ามเดือนมามีเด็กเกิดใหม่ ${fmt(b)} คน ทะเบียนราษฎร์บันทึกว่ากี่คน?`,
+    `โกดังเก็บสินค้า ${fmt(a)} ${c[6]} พ่อค้านำของมาฝากเพิ่ม ${fmt(b)} ${c[6]} ตาชั่งวัดได้กี่${c[6]}?`,
+    `${c[1]}เดินทางวันแรก ${fmt(a)} ${c[7]} วันที่สองเดิน ${fmt(b)} ${c[7]} ระยะทางบนแผนที่ทั้งสองวันรวมกันเป็นกี่${c[7]}?`,
+    `เรือบรรทุกสินค้า ${fmt(a)} ตัน แวะท่าเรือรับสินค้าเพิ่ม ${fmt(b)} ตัน กัปตันรายงานน้ำหนักบรรทุกกี่ตัน?`,
   ];
-  return {text:ts[R(0,ts.length-1)],ans};
+  return {text:ts[R(0,ts.length-1)],ans,_a:a,_b:b,_op:'add'};
 }
 
-function genS(d,ci){ // subtraction
+function genS(d,ci){
   const lo=Math.pow(10,d-1),hi=Math.pow(10,d)-1;
   const a=R(lo+500,hi),b=R(100,Math.min(a-100,Math.floor(a*.55)));
   const ans=a-b;
   const c=CH[ci].ctx;
   const ts=[
-    `${c[0]}มีเงิน ${fmt(a)} ${c[5]} ใช้ไป ${fmt(b)} ${c[5]} เหลือกี่${c[5]}?`,
-    `${c[2]}มีพวก ${fmt(a)} คน ถูก${c[0]}จัดการไป ${fmt(b)} คน เหลือกี่คน?`,
-    `${c[9]}มีทั้งหมด ${fmt(a)} ${c[6]} ใช้ไป ${fmt(b)} ${c[6]} เหลือกี่${c[6]}?`,
-    `คลังมีทรัพย์สิน ${fmt(a)} ${c[5]} ${c[1]}นำออกไป ${fmt(b)} ${c[5]} เหลือกี่${c[5]}?`,
-    `ระยะทางทั้งหมด ${fmt(a)} ${c[7]} เดินไปแล้ว ${fmt(b)} ${c[7]} เหลืออีกกี่${c[7]}?`,
+    `คลังสมบัติมีเหรียญ ${fmt(a)} ${c[5]} โจรงัดแงะไปได้ ${fmt(b)} ${c[5]} เจ้าหน้าที่นับเหรียญที่เหลือได้กี่${c[5]}?`,
+    `กองทัพ ${c[2]} ออกรบ ${fmt(a)} นาย กลับมา ${fmt(b)} นายบาดเจ็บออกจากแถว ยังคงเหลือพร้อมรบกี่นาย?`,
+    `เรือออกเดินทาง ${fmt(a)} ตัน ส่งสินค้าลงท่า ${fmt(b)} ตัน เรือยังแบกน้ำหนักอยู่กี่ตัน?`,
+    `${c[0]}มีลูกธนู ${fmt(a)} ดอก ยิงออกไป ${fmt(b)} ดอก กระบอกธนูเหลืออีกกี่ดอก?`,
+    `ระยะทางจากต้นทางถึงปลายทาง ${fmt(a)} ${c[7]} ${c[1]}เดินมาแล้ว ${fmt(b)} ${c[7]} อีกกี่${c[7]}ถึงจะถึงจุดหมาย?`,
+    `${c[3]}เก็บภาษีได้ ${fmt(a)} ${c[5]} ใช้จ่ายซ่อมกำแพง ${fmt(b)} ${c[5]} เหลือในคลังกี่${c[5]}?`,
   ];
-  return {text:ts[R(0,ts.length-1)],ans};
+  return {text:ts[R(0,ts.length-1)],ans,_a:a,_b:b,_op:'sub'};
 }
 
-function genM(tier,ci){ // multiplication
+function genM(tier,ci){
   let a,b;
-  if(tier===1){a=R(100,9999);b=R(2,9);}
-  else if(tier===2){a=R(100,999);b=R(10,49);}
+  if(tier===1){a=R(100,999);b=R(2,9);}
+  else if(tier===2){a=R(100,999);b=R(11,49);}
   else if(tier===3){a=R(1000,9999);b=R(2,9);}
-  else{a=R(100,999);b=R(11,59);}
+  else{a=R(100,999);b=R(12,59);}
   const ans=a*b;
   const c=CH[ci].ctx;
   const ts=[
-    `${c[0]}ออกหมัด ${fmt(b)} ครั้ง แต่ละครั้งพุ่งไป ${fmt(a)} เซนติเมตร ระยะทางรวมกี่เซนติเมตร?`,
-    `มีเรือ ${fmt(b)} ลำ แต่ละลำบรรทุก${c[9]} ${fmt(a)} ${c[6]} รวม${c[9]}ทั้งหมดกี่${c[6]}?`,
-    `${c[1]}ซื้อสินค้า ${fmt(b)} ชิ้น ราคาชิ้นละ ${fmt(a)} ${c[5]} ต้องจ่ายทั้งหมดกี่${c[5]}?`,
-    `${c[0]}ฝึกฝนวันละ ${fmt(a)} ครั้ง ใน ${fmt(b)} วัน ฝึกรวมกี่ครั้ง?`,
-    `ในคลัง${c[3]}มีลัง ${fmt(b)} ลัง แต่ละลังมีสมบัติ ${fmt(a)} ${c[5]} รวมกี่${c[5]}?`,
+    `ลูกเรือ ${fmt(b)} คน แต่ละคนได้รับค่าจ้างคนละ ${fmt(a)} ${c[5]} กัปตันต้องจ่ายเงินเดือนรวมกี่${c[5]}?`,
+    `เรือ ${fmt(b)} ลำ ลำหนึ่งบรรทุกได้ ${fmt(a)} ตัน ถ้าทุกลำบรรทุกจนเต็ม น้ำหนักรวมกี่ตัน?`,
+    `โซโรฝึกท่าดาบ ${fmt(a)} ครั้งต่อวัน ใน ${fmt(b)} วัน ท่าดาบทั้งหมดที่ฝึกไปกี่ครั้ง?`,
+    `แต่ละกล่องบรรจุ${c[9]} ${fmt(a)} ${c[6]} มี ${fmt(b)} กล่อง นับของในคลังได้กี่${c[6]}?`,
+    `${c[0]}วิ่งได้ ${fmt(a)} เมตรต่อนาที วิ่งนาน ${fmt(b)} นาทีโดยไม่หยุด รวมระยะทางกี่เมตร?`,
+    `ราคา${c[9]}ชิ้นละ ${fmt(a)} ${c[5]} ซื้อมา ${fmt(b)} ชิ้น ใบเสร็จระบุยอดรวมกี่${c[5]}?`,
   ];
-  return {text:ts[R(0,ts.length-1)],ans};
+  return {text:ts[R(0,ts.length-1)],ans,_a:a,_b:b,_op:'mul'};
 }
 
-function genD(tier,ci){ // division (clean)
-  const divisor=tier===1?R(2,9):R(2,9);
+function genD(tier,ci){
+  const divisor=R(2,9);
   const quot=tier===1?R(100,999):R(1000,4999);
   const dividend=divisor*quot;
   const c=CH[ci].ctx;
   const ts=[
-    `${c[0]}แบ่งสมบัติ ${fmt(dividend)} ${c[5]} ให้พวก ${divisor} คน เท่าๆ กัน คนละกี่${c[5]}?`,
-    `${c[9]}ทั้งหมด ${fmt(dividend)} ${c[6]} แบ่งใส่ถุง ${divisor} ใบ เท่าๆ กัน ถุงละกี่${c[6]}?`,
-    `นักสู้ ${fmt(dividend)} คน แบ่งเป็น ${divisor} ทีม เท่าๆ กัน ทีมละกี่คน?`,
-    `ระยะทาง ${fmt(dividend)} ${c[7]} แบ่งออกเป็น ${divisor} ช่วง เท่าๆ กัน ช่วงละกี่${c[7]}?`,
+    `${c[0]}แบ่งสมบัติ ${fmt(dividend)} ${c[5]} ออกเป็น ${divisor} ส่วนเท่าๆ กัน แต่ละส่วนมีกี่${c[5]}?`,
+    `ทหาร ${fmt(dividend)} นาย จัดเข้าหมวด ${divisor} หมวด หมวดละเท่ากัน แต่ละหมวดมีกี่นาย?`,
+    `สินค้า ${fmt(dividend)} ตัน แจกจ่ายลงเรือ ${divisor} ลำ ให้เท่ากันทุกลำ ลำละกี่ตัน?`,
+    `เงินรางวัล ${fmt(dividend)} ${c[5]} แบ่งให้ผู้ชนะ ${divisor} คน ได้รับคนละเท่ากัน คนละกี่${c[5]}?`,
+    `เสบียง ${fmt(dividend)} ${c[6]} พอสำหรับ ${divisor} วัน กินเท่ากันทุกวัน วันละกี่${c[6]}?`,
   ];
-  return {text:ts[R(0,ts.length-1)],ans:quot};
+  return {text:ts[R(0,ts.length-1)],ans:quot,_a:dividend,_b:divisor,_op:'div'};
 }
 
 const QF={
@@ -527,22 +547,68 @@ const QF={
 function makeQs(ci){
   return CH[ci].qt.map(t=>{
     const q=(QF[t]||QF.a3)(ci);
-    return {...q,choices:makeChoices(q.ans)};
+    return {...q,choices:makeChoices(q)};
   });
 }
 
-function makeChoices(ans){
+function makeChoices(q){
+  const ans=q.ans,a=q._a,b=q._b,op=q._op;
   const s=new Set([ans]);
-  const range=Math.max(50,Math.floor(ans*.18));
+  const traps=[];
+
+  if(op==='add'){
+    // ลืม carry หลักหน่วย → ans - 10
+    traps.push(ans-10,ans-100,ans-1000);
+    // ทดผิดหลัก → ans + 10
+    traps.push(ans+10,ans+100);
+    // บวกเลขหลักใดหลักหนึ่งผิด ±1
+    traps.push(ans+1,ans-1,ans+9,ans-9);
+    // ลบแทนบวก (สับสนสัญลักษณ์)
+    if(a-b>0) traps.push(a-b);
+  } else if(op==='sub'){
+    // ยืมผิด → เพิ่ม 10, 100, 1000
+    traps.push(ans+10,ans+100,ans+1000);
+    // ลืมยืม → ans - 10
+    traps.push(ans-10,ans-100);
+    // กลับทิศการลบ (b-a)
+    if(b<a) traps.push(b-(a-Math.floor(a/10)*10)>0?b:a+b-2*ans);
+    // บวกแทนลบ
+    traps.push(a+b);
+    traps.push(ans+1,ans-1);
+  } else if(op==='mul'){
+    // คูณตัวคูณผิด ±1
+    traps.push(a*(b-1),a*(b+1));
+    // ลืม carry ในหลักสิบของตัวคูณ
+    if(b>=10) traps.push(a*Math.floor(b/10)+a*(b%10));
+    // คิดแค่หลักเดียวของ b
+    traps.push(a*(b%10||1));
+    // ผลลัพธ์ขาดหนึ่ง a
+    traps.push(ans-a,ans+a);
+  } else if(op==='div'){
+    // หารได้มากเกินไป/น้อยเกินไป ±1
+    traps.push(ans+1,ans-1);
+    // สับสน หาร b ด้วย quotient แทน
+    traps.push(b);
+    // quotient ± divisor
+    traps.push(ans+b,ans-b>0?ans-b:ans+b+1);
+    // คูณแทนหาร
+    traps.push(a*b);
+  }
+
+  // ใส่ traps ที่สมเหตุสมผล (>0 และไม่ซ้ำ ans)
+  for(const t of traps){
+    const v=Math.round(t);
+    if(v>0&&v!==ans&&s.size<4) s.add(v);
+  }
+
+  // เติมช่องที่เหลือด้วยตัวเลขใกล้เคียง
+  const range=Math.max(20,Math.floor(ans*.12));
   let attempts=0;
-  while(s.size<4&&attempts++<200){
-    const r=Math.random();
-    let w;
-    if(r<.35) w=ans+R(1,range);
-    else if(r<.7) w=ans-R(1,Math.min(range,ans-1));
-    else w=ans+R(-range,range);
+  while(s.size<4&&attempts++<300){
+    const w=ans+R(-range,range);
     if(w>0&&w!==ans) s.add(w);
   }
+
   const arr=[...s];
   for(let i=arr.length-1;i>0;i--){const j=R(0,i);[arr[i],arr[j]]=[arr[j],arr[i]];}
   return arr;
@@ -561,15 +627,25 @@ function show(id){
 function startGame(){
   const n=document.getElementById('inp').value.trim();
   if(!n){document.getElementById('inp').focus();return;}
-  G.name=n;G.totSc=0;G.done.fill(false);G.stars.fill(0);
+  G.name=n;G.totSc=0;G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
   document.getElementById('mpPlayer').textContent='👤 '+n;
   renderMap();show('sm');
   startMusic();
 }
 
+function switchPlayer(){
+  // reset state ทั้งหมด แล้วกลับหน้าแรก
+  G.name='';G.totSc=0;G.ch=0;G.qi=0;G.hp=3;G.chSc=0;
+  G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
+  document.getElementById('inp').value='';
+  show('sw');
+}
+
 function renderMap(){
   const el=document.getElementById('mapList');
   el.innerHTML='';
+  const scEl=document.getElementById('mpScore');
+  if(scEl) scEl.textContent=G.totSc>0?`⭐ คะแนนรวม: ${G.totSc} คะแนน`:'';
   CH.forEach((ch,i)=>{
     const unl=i===0||G.done[i-1],dn=G.done[i],st=G.stars[i];
     const d=document.createElement('div');
@@ -601,7 +677,11 @@ function startCh(){
   G.qs=makeQs(G.ch);
   show('sg');
   document.getElementById('gCh').textContent=CH[G.ch].n;
-  setTimeout(()=>{initCV();renderQ();},80);
+  document.getElementById('gHearts').textContent='❤️❤️❤️';
+  document.getElementById('gScore').textContent='0';
+  document.getElementById('solBox').classList.remove('show');
+  renderQ();
+  setTimeout(initCV,80);
 }
 
 // ══════════════════════════════════════════════
@@ -610,6 +690,7 @@ function startCh(){
 function renderQ(){
   const q=G.qs[G.qi];
   G.sel=null;G.phase='idle';
+  document.getElementById('solBox').classList.remove('show');
   document.getElementById('gHearts').textContent='❤️'.repeat(G.hp)+'🖤'.repeat(3-G.hp);
   document.getElementById('gQC').textContent=`ข้อ ${G.qi+1}/${G.qs.length}`;
   document.getElementById('gScore').textContent=G.chSc;
@@ -661,13 +742,17 @@ function onCfm(){
     else if(v===G.sel) b.classList.add('bad');
   });
   if(ok){
-    G.chSc+=10;G.totSc+=10;
+    G.chSc+=10;
+    if(G.chSc > G.bestSc[G.ch]) G.bestSc[G.ch]=G.chSc;
+    G.totSc=G.bestSc.reduce((s,v)=>s+v,0);
     document.getElementById('gScore').textContent=G.chSc;
     showFB('✅');ptcl(['⭐','✨','🌟'],6);playSnd('ok');
   } else {
     G.hp--;
     document.getElementById('gHearts').textContent='❤️'.repeat(G.hp)+'🖤'.repeat(3-G.hp);
     showFB('❌');playSnd('bad');
+    // แสดงเฉลยพร้อมวิธีคิด
+    showSolution(q);
     if(G.hp<=0){setTimeout(()=>{
       if(confirm('หมดพลังแล้ว! 😅\nลองใหม่อีกครั้ง?')) startCh();
       else show('sm');
@@ -679,15 +764,65 @@ function onCfm(){
 function endCh(){
   const tot=G.qs.length*10,pct=G.chSc/tot;
   const st=pct>=.9?3:pct>=.6?2:1;
-  G.done[G.ch]=true;G.stars[G.ch]=Math.max(G.stars[G.ch],st);
+  G.done[G.ch]=true;
+  G.stars[G.ch]=Math.max(G.stars[G.ch],st);
+  // เก็บเฉพาะคะแนนสูงสุดของด่านนี้ แล้วคำนวณ totSc ใหม่
+  if(G.chSc > G.bestSc[G.ch]) G.bestSc[G.ch]=G.chSc;
+  G.totSc=G.bestSc.reduce((s,v)=>s+v,0);
   document.getElementById('ccSt').textContent='⭐'.repeat(st)+'☆'.repeat(3-st);
   document.getElementById('ccSc').innerHTML=`<span>${G.chSc}</span> / ${tot}`;
   const msgs=['ดีมาก! ลองทำให้ได้คะแนนเต็มนะ! 💪','เก่งมาก! เกือบเต็มแล้ว 😊','ยอดเยี่ยม! คะแนนเต็ม! 🌟'];
   document.getElementById('ccMsg').textContent=msgs[st-1];
   ptcl(['🎉','⭐','🏴‍☠️'],8);
-  if(G.ch===6){setTimeout(async()=>{await saveScore();document.getElementById('vSc').textContent=G.totSc;show('sv');},600);}
-  else show('scc');
+  saveScore();
+  if(G.ch===6){
+    setTimeout(()=>{document.getElementById('vSc').textContent=G.totSc;show('sv');},600);
+  } else {
+    show('scc');
+  }
   renderMap();
+}
+
+function showSolution(q){
+  const a=q._a, b=q._b, ans=q.ans, op=q._op;
+  let steps='', ansLine='';
+  if(op==='add'){
+    // แสดงการบวกแบบตั้งหลัก
+    const aStr=fmt(a), bStr=fmt(b), ansStr=fmt(ans);
+    const w=Math.max(aStr.length,bStr.length,ansStr.length)+2;
+    steps = `  ${aStr.padStart(w)}\n+ ${bStr.padStart(w)}\n${'─'.repeat(w+2)}\n  ${ansStr.padStart(w)}`;
+    ansLine=`คำตอบ: ${fmt(a)} + ${fmt(b)} = ${fmt(ans)}`;
+  } else if(op==='sub'){
+    const aStr=fmt(a), bStr=fmt(b), ansStr=fmt(ans);
+    const w=Math.max(aStr.length,bStr.length,ansStr.length)+2;
+    steps = `  ${aStr.padStart(w)}\n− ${bStr.padStart(w)}\n${'─'.repeat(w+2)}\n  ${ansStr.padStart(w)}`;
+    ansLine=`คำตอบ: ${fmt(a)} − ${fmt(b)} = ${fmt(ans)}`;
+  } else if(op==='mul'){
+    if(b<10){
+      steps=`${fmt(a)} × ${b}\n`;
+      // แสดง partial products หลักสิบ หลักหน่วย
+      const h=Math.floor(a/10)*b, l=(a%10)*b;
+      if(b>=10){
+        const b1=Math.floor(b/10), b0=b%10;
+        const p0=a*b0, p1=a*b1;
+        steps=`${fmt(a)} × ${b0} = ${fmt(p0)}\n${fmt(a)} × ${b1}0 = ${fmt(p1*10)}\n${'─'.repeat(16)}\n${fmt(p0)} + ${fmt(p1*10)} = ${fmt(ans)}`;
+      } else {
+        steps=`${fmt(a)} × ${b} = ${fmt(ans)}`;
+      }
+    } else {
+      const b1=Math.floor(b/10), b0=b%10;
+      const p0=a*b0, p1=a*b1;
+      steps=`${fmt(a)} × ${b0} (หลักหน่วย) = ${fmt(p0)}\n${fmt(a)} × ${b1}0 (หลักสิบ)  = ${fmt(p1*10)}\n${'─'.repeat(22)}\n${fmt(p0)} + ${fmt(p1*10)} = ${fmt(ans)}`;
+    }
+    ansLine=`คำตอบ: ${fmt(a)} × ${fmt(b)} = ${fmt(ans)}`;
+  } else if(op==='div'){
+    const q2=ans, rem=0;
+    steps=`${fmt(a)} ÷ ${b} = ?\n\n${b} × ${fmt(q2)} = ${fmt(a)}\nดังนั้น ${fmt(a)} ÷ ${b} = ${fmt(q2)}`;
+    ansLine=`คำตอบ: ${fmt(a)} ÷ ${b} = ${fmt(ans)}`;
+  }
+  document.getElementById('solStep').textContent=steps;
+  document.getElementById('solAns').textContent=ansLine;
+  document.getElementById('solBox').classList.add('show');
 }
 
 function showFB(e){
@@ -714,48 +849,101 @@ let cv,ctx,drw=false,penC='#fff',eraserMode=false;
 function initCV(){
   cv=document.getElementById('scratch');
   if(!cv) return;
-  const dpr=window.devicePixelRatio||1;
-  const r=cv.getBoundingClientRect();
-  if(!r.width) return;
-  cv.width=r.width*dpr;cv.height=r.height*dpr;
-  ctx=cv.getContext('2d');
-  ctx.scale(dpr,dpr);
-  ctx.strokeStyle=penC;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
-  // Clone to remove old listeners
+
+  // Clone to clear old listeners
   const nc=cv.cloneNode(false);
   cv.parentNode.replaceChild(nc,cv);
   cv=nc;
-  const r2=cv.getBoundingClientRect();
-  cv.width=r2.width*dpr;cv.height=r2.height*dpr;
-  ctx=cv.getContext('2d');
+
+  const dpr=window.devicePixelRatio||1;
+  const rc=cv.getBoundingClientRect();
+  if(!rc.width) return;
+
+  cv.width=rc.width*dpr;
+  cv.height=rc.height*dpr;
+
+  // desynchronized=true ลด input latency บน iPad
+  ctx=cv.getContext('2d',{desynchronized:true});
   ctx.scale(dpr,dpr);
-  ctx.strokeStyle=penC;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';
-  cv.addEventListener('pointerdown',e=>{
-    drw=true;cv.setPointerCapture(e.pointerId);
-    const p=gpos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);e.preventDefault();
-  },{passive:false});
-  cv.addEventListener('pointermove',e=>{
-    if(!drw)return;
-    const p=gpos(e);
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+
+  // --- state สำหรับ midpoint smoothing ---
+  let p0={x:0,y:0}; // prev point
+  let p1={x:0,y:0}; // current point
+  let mid0={x:0,y:0}; // midpoint ก่อนหน้า
+
+  function cvRect(){ return cv.getBoundingClientRect(); }
+  function getXY(e){
+    const r=cvRect();
+    return{x:e.clientX-r.left, y:e.clientY-r.top, pr:e.pressure||0};
+  }
+
+  function applyStyle(pressure, isPen){
     if(eraserMode){
       ctx.globalCompositeOperation='destination-out';
-      ctx.lineWidth=Math.max(18, e.pressure>0?e.pressure*40:18);
       ctx.strokeStyle='rgba(0,0,0,1)';
+      ctx.lineWidth=isPen?(pressure>0?Math.max(12,pressure*28):14):18;
     } else {
       ctx.globalCompositeOperation='source-over';
       ctx.strokeStyle=penC;
-      ctx.lineWidth=e.pressure>0?Math.max(1.5,e.pressure*5):2.5;
+      // pen: pressure sensitive 1–3.5px, finger/mouse: 2.5px คงที่
+      ctx.lineWidth=isPen?(pressure>0?Math.max(1,pressure*3.5):2):2.5;
     }
-    ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y);
+  }
+
+  // วาด smooth segment ด้วย midpoint quadratic bezier
+  // moveTo(mid0) → quadraticCurveTo(p0, mid1)
+  function drawSmooth(x, y, pressure, isPen){
+    const mid1={x:(p0.x+x)/2, y:(p0.y+y)/2};
+    applyStyle(pressure, isPen);
+    ctx.beginPath();
+    ctx.moveTo(mid0.x, mid0.y);
+    ctx.quadraticCurveTo(p0.x, p0.y, mid1.x, mid1.y);
+    ctx.stroke();
+    mid0=mid1;
+    p0={x,y};
+  }
+
+  cv.addEventListener('pointerdown',e=>{
+    drw=true;
+    cv.setPointerCapture(e.pointerId);
+    const {x,y,pr}=getXY(e);
+    p0={x,y}; mid0={x,y};
+    const isPen=e.pointerType==='pen';
+    applyStyle(pr, isPen);
+    // dot เล็กๆ เมื่อแตะโดยไม่ลาก
+    ctx.beginPath();
+    ctx.arc(x, y, ctx.lineWidth/2, 0, Math.PI*2);
+    ctx.fillStyle = eraserMode ? 'rgba(0,0,0,1)' : penC;
+    ctx.fill();
+    // reset เส้นหลังจาก fill
+    ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
     e.preventDefault();
   },{passive:false});
-  cv.addEventListener('pointerup',()=>drw=false,{passive:true});
-  cv.addEventListener('pointercancel',()=>drw=false,{passive:true});
-}
 
-function gpos(e){
-  const r=cv.getBoundingClientRect();
-  return{x:e.clientX-r.left,y:e.clientY-r.top};
+  cv.addEventListener('pointermove',e=>{
+    if(!drw) return;
+    const isPen=e.pointerType==='pen';
+    const coalesced=e.getCoalescedEvents?e.getCoalescedEvents():[e];
+    for(const ce of coalesced){
+      const {x,y,pr}=getXY(ce);
+      // กรองจุดที่ใกล้เกินไป (< 0.5px) ออก
+      const dx=x-p0.x, dy=y-p0.y;
+      if(dx*dx+dy*dy < 0.25) continue;
+      drawSmooth(x,y,pr,isPen);
+    }
+    e.preventDefault();
+  },{passive:false});
+
+  cv.addEventListener('pointerup',e=>{
+    if(!drw) return;
+    drw=false;
+    const {x,y,pr}=getXY(e);
+    drawSmooth(x,y,pr,e.pointerType==='pen');
+  },{passive:true});
+
+  cv.addEventListener('pointercancel',()=>{drw=false;},{passive:true});
 }
 function toggleEraser(btn){
   eraserMode=!eraserMode;
@@ -763,6 +951,8 @@ function toggleEraser(btn){
   if(eraserMode){
     document.querySelectorAll('.cb').forEach(b=>b.classList.remove('on'));
   } else {
+    // กลับโหมดปากกา — reset composite
+    if(ctx) ctx.globalCompositeOperation='source-over';
     const active=document.querySelector(`.cb[data-c="${penC}"]`);
     if(active) active.classList.add('on');
   }
@@ -773,11 +963,17 @@ function setC(btn){
   penC=btn.dataset.c;
   document.querySelectorAll('.cb').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  if(ctx) ctx.strokeStyle=penC;
+  if(ctx){
+    ctx.strokeStyle=penC;
+    ctx.globalCompositeOperation='source-over';
+  }
 }
 function clrCV(){
-  if(!cv||!ctx)return;
-  ctx.clearRect(0,0,cv.width/(window.devicePixelRatio||1),cv.height/(window.devicePixelRatio||1));
+  if(!cv||!ctx) return;
+  const dpr=window.devicePixelRatio||1;
+  // reset composite ก่อนล้าง ป้องกัน destination-out ค้าง
+  ctx.globalCompositeOperation='source-over';
+  ctx.clearRect(0,0,cv.width/dpr,cv.height/dpr);
 }
 
 // ══════════════════════════════════════════════
@@ -826,45 +1022,67 @@ function playSnd(t){
 }
 
 // ══════════════════════════════════════════════
-//  LEADERBOARD
+//  LEADERBOARD — Firebase Firestore
 // ══════════════════════════════════════════════
-const LK='op_eb2_lb';
+const COL = 'leaderboard';
 
 async function saveScore(){
-  const e={name:G.name,score:G.totSc,date:new Date().toLocaleDateString('th-TH')};
-  try{await window.storage.set(LK+':'+G.name,JSON.stringify(e),true);}
-  catch(_){
-    try{const m=JSON.parse(localStorage.getItem(LK)||'{}');
-      if(!m[G.name]||m[G.name].score<G.totSc)m[G.name]=e;
-      localStorage.setItem(LK,JSON.stringify(m));}catch(e2){}
+  if(!G.name) return;
+  const chapDone = G.done.filter(Boolean).length; // จำนวน map ที่ผ่านแล้ว
+  const entry = {
+    name: G.name,
+    score: G.totSc,
+    chap: chapDone,          // เก็บ progress
+    date: new Date().toLocaleDateString('th-TH'),
+    ts: Date.now()
+  };
+  const lsKey = 'op_eb_lb';
+  if(db){
+    try{
+      const ref = db.collection(COL).doc(G.name);
+      const snap = await ref.get();
+      // อัปเดตถ้าคะแนนสูงกว่าเดิม
+      if(!snap.exists || snap.data().score < G.totSc) await ref.set(entry);
+      return;
+    }catch(err){ }
   }
+  // localStorage fallback
+  try{
+    const m = JSON.parse(localStorage.getItem(lsKey)||'{}');
+    if(!m[G.name] || m[G.name].score < G.totSc) m[G.name] = entry;
+    localStorage.setItem(lsKey, JSON.stringify(m));
+  }catch(_){}
 }
 
 async function loadLB(){
-  const el=document.getElementById('lbList');
-  el.innerHTML='<div class="lb-empty">กำลังโหลด Ranking... ⏳</div>';
-  let entries=[];
-  try{
-    const ks=await window.storage.list(LK+':',true);
-    if(ks&&ks.keys){
-      for(const k of ks.keys){
-        try{const r=await window.storage.get(k,true);if(r?.value)entries.push(JSON.parse(r.value));}catch(e){}
-      }
+  const el = document.getElementById('lbList');
+  el.innerHTML = '<div class="lb-empty">กำลังโหลด Ranking... ⏳</div>';
+  let entries = [];
+  const lsKey = 'op_eb_lb';
+  if(db){
+    try{
+      const snap = await db.collection(COL).orderBy('score','desc').limit(20).get();
+      snap.forEach(doc => entries.push(doc.data()));
+    }catch(err){
+      
+      try{ entries = Object.values(JSON.parse(localStorage.getItem(lsKey)||'{}')); }catch(_){}
     }
-  }catch(_){
-    try{const lc=JSON.parse(localStorage.getItem(LK)||'{}');entries=Object.values(lc);}catch(e2){}
+  } else {
+    try{ entries = Object.values(JSON.parse(localStorage.getItem(lsKey)||'{}')); }catch(_){}
   }
-  entries.sort((a,b)=>b.score-a.score);
+  entries.sort((a,b) => b.score - a.score);
   if(!entries.length){
-    el.innerHTML='<div class="lb-empty">🏴‍☠️ ยังไม่มีข้อมูล Ranking<br><small>เล่นให้จบแล้วมาดูอีกครั้ง!</small></div>';
+    el.innerHTML = '<div class="lb-empty">🏴‍☠️ ยังไม่มีข้อมูล Ranking<br><small>เล่นจนจบด่านแรกแล้วมาดูอีกครั้ง!</small></div>';
     return;
   }
-  const medals=['🥇','🥈','🥉'];
-  el.innerHTML=entries.slice(0,20).map((e,i)=>{
-    const me=e.name===G.name;
-    return`<div class="lb-row${me?' me':''}">
+  const medals = ['🥇','🥈','🥉'];
+  const mapIco = ['🏝️','⚓','🍊','🏹','🍳','🌊','⚡'];
+  el.innerHTML = entries.map((e,i) => {
+    const me = e.name === G.name;
+    const prog = e.chap>0 ? `<span style="color:#aaa;font-size:.7rem;margin-left:4px;">${mapIco.slice(0,e.chap).join('')}</span>` : '';
+    return `<div class="lb-row${me?' me':''}">
       <div class="lb-rank">${medals[i]||'#'+(i+1)}</div>
-      <div class="lb-name">${me?'👤 ':''} ${e.name}</div>
+      <div class="lb-name">${me?'👤 ':''}${e.name}${prog}</div>
       <div class="lb-sc">⭐ ${e.score}</div>
       <div class="lb-dt">${e.date||''}</div>
     </div>`;
@@ -897,6 +1115,26 @@ async function loadLB(){
   });
   show('sw');
 })();
+</script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyC7rkitRembsLuEYiYOtkZpRvVfOEsyvnI",
+  authDomain: "onepieceeastbluearc.firebaseapp.com",
+  projectId: "onepieceeastbluearc",
+  storageBucket: "onepieceeastbluearc.firebasestorage.app",
+  messagingSenderId: "138147216949",
+  appId: "1:138147216949:web:fb7eb5a476eb63cd177b7c"
+};
+let db = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+} catch(e) {
+  // Firebase unavailable (e.g. sandbox) — localStorage fallback will be used
+}
 </script>
 </body>
 </html>
