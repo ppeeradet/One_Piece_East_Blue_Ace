@@ -115,7 +115,10 @@ html,body{width:100%;height:100%;overflow:hidden;
 .g-hearts{font-size:1.15rem;letter-spacing:1px;}
 .g-ch{color:var(--gold);font-size:.82rem;font-weight:700;text-align:center;}
 .g-qcount{font-size:.72rem;color:#999;text-align:center;}
-.g-score{color:var(--sky);font-size:.85rem;text-align:right;}
+.g-score-wrap{text-align:right;}
+.g-score-total{color:var(--gold);font-size:1.15rem;font-weight:900;letter-spacing:.5px;
+  text-shadow:0 0 12px rgba(244,160,23,.7);}
+.g-score-ch{color:#7ecef4;font-size:.72rem;margin-top:1px;}
 .g-btns{display:flex;gap:6px;margin-top:2px;justify-content:flex-end;}
 
 .prog{height:4px;background:rgba(255,255,255,.1);flex-shrink:0;}
@@ -251,6 +254,7 @@ html,body{width:100%;height:100%;overflow:hidden;
       <label>⚔️ ชื่อนักผจญภัย</label>
       <input id="inp" type="text" placeholder="พิมพ์ชื่อของเธอ..." autocomplete="off" maxlength="20"/>
       <button class="btn-p" onclick="startGame()">🏴‍☠️ เริ่มการผจญภัย!</button>
+      <button class="btn-p" id="btnContinue" style="display:none;background:linear-gradient(135deg,#1aa67a,#2ecc99);box-shadow:0 4px 15px rgba(26,166,122,.5);" onclick="continueGame()"></button>
       <button class="btn-s" onclick="show('slb')">🏆 ดูตาราง Ranking</button>
     </div>
   </div>
@@ -293,7 +297,10 @@ html,body{width:100%;height:100%;overflow:hidden;
       <div class="g-ch" id="gCh"></div>
     </div>
     <div>
-      <div class="g-score">⭐ <span id="gScore">0</span></div>
+      <div class="g-score-wrap">
+        <div class="g-score-total">⭐ <span id="gScoreTot">0</span></div>
+        <div class="g-score-ch">ด่านนี้: <span id="gScore">0</span></div>
+      </div>
       <div class="g-btns">
         <button class="bk" style="font-size:.78rem;padding:4px 8px;" onclick="show('sm')">🗺️</button>
         <button class="mu" style="font-size:1rem;" onclick="togMusic()">🔊</button>
@@ -355,14 +362,14 @@ html,body{width:100%;height:100%;overflow:hidden;
     <div class="vic-score">คะแนนรวม: <span id="vSc" style="color:var(--gold)">0</span></div>
     <div id="vRank" style="color:var(--sky);margin-bottom:20px;font-size:.9rem;"></div>
     <button class="btn-p" onclick="show('slb')">🏆 ดู Ranking</button>
-    <button class="btn-s" style="margin-top:8px;" onclick="show('sw')">🔄 เล่นใหม่</button>
+    <button class="btn-s" style="margin-top:8px;" onclick="goWelcome()">🔄 เล่นใหม่</button>
   </div>
 </div>
 
 <!-- LEADERBOARD -->
 <div class="sc" id="slb">
   <div class="lb-hdr">
-    <button class="bk" onclick="show('sw')">← กลับ</button>
+    <button class="bk" onclick="goWelcome()">← กลับ</button>
     <div class="lb-hdr-t">🏆 Ranking อีสต์บลู</div>
   </div>
   <div class="lb-body"><div id="lbList" class="lb-empty">กำลังโหลด...</div></div>
@@ -624,28 +631,60 @@ function show(id){
   if(id==='sg') setTimeout(initCV,80);
 }
 
+function continueGame(){
+  document.getElementById('mpPlayer').textContent='👤 '+G.name;
+  document.getElementById('btnContinue').style.display='none';
+  renderMap();show('sm');
+  startMusic();
+}
+
+function goWelcome(){
+  // กลับหน้าแรกโดยไม่ reset — ถ้า login อยู่แล้วแสดงชื่อ+ปุ่มกลับแผนที่
+  if(G.name){
+    document.getElementById('inp').value=G.name;
+    document.getElementById('btnContinue').style.display='block';
+    document.getElementById('btnContinue').textContent=`🗺️ เล่นต่อในฐานะ ${G.name}`;
+  } else {
+    document.getElementById('inp').value='';
+    document.getElementById('btnContinue').style.display='none';
+  }
+  show('sw');
+}
+
 function startGame(){
   const n=document.getElementById('inp').value.trim();
   if(!n){document.getElementById('inp').focus();return;}
-  G.name=n;G.totSc=0;G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
-  document.getElementById('mpPlayer').textContent='👤 '+n;
+  // ถ้าเปลี่ยนชื่อ → reset ทั้งหมด | ชื่อเดิม → เล่นต่อ
+  if(n !== G.name){
+    G.name=n;G.totSc=0;G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
+    G.ch=0;G.qi=0;G.hp=3;G.chSc=0;
+  }
+  document.getElementById('inp').value=G.name;
+  document.getElementById('mpPlayer').textContent='👤 '+G.name;
+  document.getElementById('btnContinue').style.display='none';
   renderMap();show('sm');
   startMusic();
 }
 
 function switchPlayer(){
-  // reset state ทั้งหมด แล้วกลับหน้าแรก
   G.name='';G.totSc=0;G.ch=0;G.qi=0;G.hp=3;G.chSc=0;
   G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
   document.getElementById('inp').value='';
+  document.getElementById('btnContinue').style.display='none';
   show('sw');
+}
+
+function updateScoreDisplay(){
+  const scEl=document.getElementById('mpScore');
+  if(scEl) scEl.textContent=G.totSc>0?`⭐ คะแนนรวม: ${G.totSc} คะแนน`:'';
+  const tot=document.getElementById('gScoreTot');
+  if(tot) tot.textContent=G.totSc||'0';
 }
 
 function renderMap(){
   const el=document.getElementById('mapList');
   el.innerHTML='';
-  const scEl=document.getElementById('mpScore');
-  if(scEl) scEl.textContent=G.totSc>0?`⭐ คะแนนรวม: ${G.totSc} คะแนน`:'';
+  updateScoreDisplay();
   CH.forEach((ch,i)=>{
     const unl=i===0||G.done[i-1],dn=G.done[i],st=G.stars[i];
     const d=document.createElement('div');
@@ -679,6 +718,7 @@ function startCh(){
   document.getElementById('gCh').textContent=CH[G.ch].n;
   document.getElementById('gHearts').textContent='❤️❤️❤️';
   document.getElementById('gScore').textContent='0';
+  document.getElementById('gScoreTot').textContent=G.totSc||'0';
   document.getElementById('solBox').classList.remove('show');
   renderQ();
   setTimeout(initCV,80);
@@ -746,6 +786,13 @@ function onCfm(){
     if(G.chSc > G.bestSc[G.ch]) G.bestSc[G.ch]=G.chSc;
     G.totSc=G.bestSc.reduce((s,v)=>s+v,0);
     document.getElementById('gScore').textContent=G.chSc;
+    document.getElementById('gScoreTot').textContent=G.totSc;
+    // แสดงตัวเลขแบบ pop animation
+    const el=document.getElementById('gScoreTot');
+    el.style.transform='scale(1.4)';el.style.transition='transform .15s';
+    setTimeout(()=>{el.style.transform='scale(1)';},150);
+    // อัพเดท ranking realtime ทันทีทุกครั้งที่ตอบถูก
+    saveScore();
     showFB('✅');ptcl(['⭐','✨','🌟'],6);playSnd('ok');
   } else {
     G.hp--;
@@ -1028,30 +1075,31 @@ const COL = 'leaderboard';
 
 async function saveScore(){
   if(!G.name) return;
-  const chapDone = G.done.filter(Boolean).length; // จำนวน map ที่ผ่านแล้ว
+  const chapDone = G.done.filter(Boolean).length;
   const entry = {
     name: G.name,
     score: G.totSc,
-    chap: chapDone,          // เก็บ progress
+    chap: chapDone,
     date: new Date().toLocaleDateString('th-TH'),
     ts: Date.now()
   };
   const lsKey = 'op_eb_lb';
-  if(db){
-    try{
-      const ref = db.collection(COL).doc(G.name);
-      const snap = await ref.get();
-      // อัปเดตถ้าคะแนนสูงกว่าเดิม
-      if(!snap.exists || snap.data().score < G.totSc) await ref.set(entry);
-      return;
-    }catch(err){ }
-  }
-  // localStorage fallback
+
+  // บันทึก localStorage เสมอ ไม่ขึ้นกับ Firebase
   try{
     const m = JSON.parse(localStorage.getItem(lsKey)||'{}');
     if(!m[G.name] || m[G.name].score < G.totSc) m[G.name] = entry;
     localStorage.setItem(lsKey, JSON.stringify(m));
   }catch(_){}
+
+  // บันทึก Firebase เพิ่มเติม (ถ้าออนไลน์)
+  if(db){
+    try{
+      const ref = db.collection(COL).doc(G.name);
+      const snap = await ref.get();
+      if(!snap.exists || snap.data().score < G.totSc) await ref.set(entry);
+    }catch(err){}
+  }
 }
 
 async function loadLB(){
@@ -1059,17 +1107,27 @@ async function loadLB(){
   el.innerHTML = '<div class="lb-empty">กำลังโหลด Ranking... ⏳</div>';
   let entries = [];
   const lsKey = 'op_eb_lb';
+
+  // โหลด localStorage ก่อนเสมอ
+  let lsEntries = {};
+  try{ lsEntries = JSON.parse(localStorage.getItem(lsKey)||'{}'); }catch(_){}
+
   if(db){
     try{
       const snap = await db.collection(COL).orderBy('score','desc').limit(20).get();
-      snap.forEach(doc => entries.push(doc.data()));
+      if(!snap.empty){
+        snap.forEach(doc => entries.push(doc.data()));
+      } else {
+        // Firebase ว่าง → ใช้ localStorage
+        entries = Object.values(lsEntries);
+      }
     }catch(err){
-      
-      try{ entries = Object.values(JSON.parse(localStorage.getItem(lsKey)||'{}')); }catch(_){}
+      entries = Object.values(lsEntries);
     }
   } else {
-    try{ entries = Object.values(JSON.parse(localStorage.getItem(lsKey)||'{}')); }catch(_){}
+    entries = Object.values(lsEntries);
   }
+
   entries.sort((a,b) => b.score - a.score);
   if(!entries.length){
     el.innerHTML = '<div class="lb-empty">🏴‍☠️ ยังไม่มีข้อมูล Ranking<br><small>เล่นจนจบด่านแรกแล้วมาดูอีกครั้ง!</small></div>';
