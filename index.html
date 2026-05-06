@@ -228,6 +228,16 @@ html,body{width:100%;height:100%;overflow:hidden;
 @keyframes fly{0%{transform:translateY(0) scale(1);opacity:1}
   100%{transform:translateY(-110px) scale(.4);opacity:0}}
 
+/* ── SAVE INFO ── */
+.save-info{display:none;margin:-4px 0 12px;padding:10px 14px;
+  background:rgba(26,166,122,.15);border:1.5px solid rgba(26,166,122,.45);
+  border-radius:10px;color:#7effa0;font-size:.82rem;line-height:1.6;text-align:center;}
+.save-info strong{color:#a8ffc4;}
+.btn-reset{display:block;width:100%;padding:10px;margin-bottom:10px;
+  background:rgba(255,255,255,.05);border:1.5px solid rgba(255,100,100,.35);
+  border-radius:10px;color:#ff9090;font-size:.88rem;cursor:pointer;transition:all .15s;}
+.btn-reset:active{background:rgba(255,100,100,.15);}
+
 /* scrollbar */
 ::-webkit-scrollbar{width:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -253,8 +263,9 @@ html,body{width:100%;height:100%;overflow:hidden;
     <div class="wcard">
       <label>⚔️ ชื่อนักผจญภัย</label>
       <input id="inp" type="text" placeholder="พิมพ์ชื่อของเธอ..." autocomplete="off" maxlength="20"/>
-      <button class="btn-p" onclick="startGame()">🏴‍☠️ เริ่มการผจญภัย!</button>
-      <button class="btn-p" id="btnContinue" style="display:none;background:linear-gradient(135deg,#1aa67a,#2ecc99);box-shadow:0 4px 15px rgba(26,166,122,.5);" onclick="continueGame()"></button>
+      <div class="save-info" id="saveInfo"></div>
+      <button class="btn-p" id="btnStart" onclick="startGame()">🏴‍☠️ เริ่มการผจญภัย!</button>
+      <button class="btn-reset" id="btnReset" style="display:none;" onclick="resetAndStart()">🔄 ล้างข้อมูลเก่า แล้วเริ่มใหม่</button>
       <button class="btn-s" onclick="show('slb')">🏆 ดูตาราง Ranking</button>
     </div>
   </div>
@@ -622,6 +633,93 @@ function makeChoices(q){
 }
 
 // ══════════════════════════════════════════════
+//  SAVE / LOAD SYSTEM
+// ══════════════════════════════════════════════
+const SAVE_PREFIX = 'op_eb_save_';
+
+async function saveProgress(){
+  if(!G.name) return;
+  const data={
+    name:G.name, totSc:G.totSc,
+    done:[...G.done], stars:[...G.stars], bestSc:[...G.bestSc],
+    savedAt:Date.now(),
+    savedAtStr:new Date().toLocaleDateString('th-TH')
+  };
+  // 1) localStorage (primary)
+  try{ localStorage.setItem(SAVE_PREFIX+G.name, JSON.stringify(data)); }catch(_){}
+  // 2) Firebase (backup)
+  if(db){
+    try{ await db.collection('saves').doc(G.name).set(data); }catch(_){}
+  }
+}
+
+async function loadSave(name){
+  // localStorage ก่อนเสมอ
+  try{
+    const ls=localStorage.getItem(SAVE_PREFIX+name);
+    if(ls){ const d=JSON.parse(ls); if(d&&d.name) return d; }
+  }catch(_){}
+  // Firebase fallback
+  if(db){
+    try{
+      const snap=await db.collection('saves').doc(name).get();
+      if(snap.exists){ const d=snap.data(); if(d&&d.name) return d; }
+    }catch(_){}
+  }
+  return null;
+}
+
+async function deleteSave(name){
+  try{ localStorage.removeItem(SAVE_PREFIX+name); }catch(_){}
+  if(db){ try{ await db.collection('saves').doc(name).delete(); }catch(_){} }
+}
+
+function applySave(data){
+  G.name=data.name;
+  G.totSc=data.totSc||0;
+  G.done=[...(data.done||Array(7).fill(false))];
+  G.stars=[...(data.stars||Array(7).fill(0))];
+  G.bestSc=[...(data.bestSc||Array(7).fill(0))];
+  G.ch=0; G.qi=0; G.hp=3; G.chSc=0;
+}
+
+// ── Save info on welcome screen ──
+let _saveTimer=null;
+async function onNameInput(){
+  const n=document.getElementById('inp').value.trim();
+  clearTimeout(_saveTimer);
+  _hideSaveInfo();
+  if(!n) return;
+  _saveTimer=setTimeout(async()=>{
+    const sv=await loadSave(n);
+    if(sv) _showSaveInfo(sv);
+  },450);
+}
+
+function _showSaveInfo(sv){
+  const done=sv.done.filter(Boolean).length;
+  const mapIco=['🏝️','⚓','🍊','🏹','🍳','🌊','⚡'];
+  const prog=sv.done.map((d,i)=>d?mapIco[i]:'').join('');
+  document.getElementById('saveInfo').innerHTML=
+    `✅ พบข้อมูลของ <strong>${sv.name}</strong><br>`+
+    `ผ่านแล้ว ${done}/7 ด่าน ${prog}<br>`+
+    `⭐ ${sv.totSc} คะแนน · บันทึกล่าสุด ${sv.savedAtStr||''}`;
+  document.getElementById('saveInfo').style.display='block';
+  document.getElementById('btnStart').textContent='🗺️ เล่นต่อ!';
+  document.getElementById('btnStart').style.background='linear-gradient(135deg,#1aa67a,#2ecc99)';
+  document.getElementById('btnStart').style.boxShadow='0 4px 15px rgba(26,166,122,.5)';
+  document.getElementById('btnReset').style.display='block';
+}
+
+function _hideSaveInfo(){
+  document.getElementById('saveInfo').style.display='none';
+  document.getElementById('btnStart').textContent='🏴‍☠️ เริ่มการผจญภัย!';
+  document.getElementById('btnStart').style.background='';
+  document.getElementById('btnStart').style.boxShadow='';
+  document.getElementById('btnReset').style.display='none';
+}
+
+// ══════════════════════════════════════════════
 //  NAVIGATION
 // ══════════════════════════════════════════════
 function show(id){
@@ -631,47 +729,60 @@ function show(id){
   if(id==='sg') setTimeout(initCV,80);
 }
 
-function continueGame(){
-  document.getElementById('mpPlayer').textContent='👤 '+G.name;
-  document.getElementById('btnContinue').style.display='none';
-  renderMap();show('sm');
-  startMusic();
-}
-
 function goWelcome(){
-  // กลับหน้าแรกโดยไม่ reset — ถ้า login อยู่แล้วแสดงชื่อ+ปุ่มกลับแผนที่
   if(G.name){
     document.getElementById('inp').value=G.name;
-    document.getElementById('btnContinue').style.display='block';
-    document.getElementById('btnContinue').textContent=`🗺️ เล่นต่อในฐานะ ${G.name}`;
+    // trigger save info check
+    onNameInput();
   } else {
     document.getElementById('inp').value='';
-    document.getElementById('btnContinue').style.display='none';
+    _hideSaveInfo();
   }
   show('sw');
 }
 
-function startGame(){
+async function startGame(){
   const n=document.getElementById('inp').value.trim();
   if(!n){document.getElementById('inp').focus();return;}
-  // ถ้าเปลี่ยนชื่อ → reset ทั้งหมด | ชื่อเดิม → เล่นต่อ
-  if(n !== G.name){
-    G.name=n;G.totSc=0;G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
-    G.ch=0;G.qi=0;G.hp=3;G.chSc=0;
+  const sv=await loadSave(n);
+  if(sv){
+    applySave(sv);
+  } else {
+    // ชื่อใหม่ — เริ่มใหม่
+    G.name=n; G.totSc=0; G.done.fill(false); G.stars.fill(0); G.bestSc.fill(0);
+    G.ch=0; G.qi=0; G.hp=3; G.chSc=0;
   }
-  document.getElementById('inp').value=G.name;
   document.getElementById('mpPlayer').textContent='👤 '+G.name;
-  document.getElementById('btnContinue').style.display='none';
-  renderMap();show('sm');
+  _hideSaveInfo();
+  renderMap(); show('sm');
+  startMusic();
+}
+
+async function resetAndStart(){
+  const n=document.getElementById('inp').value.trim();
+  if(!n) return;
+  if(!confirm(`⚠️ ล้างข้อมูลทั้งหมดของ "${n}" แล้วเริ่มใหม่ตั้งแต่ต้น?`)) return;
+  await deleteSave(n);
+  G.name=n; G.totSc=0; G.done.fill(false); G.stars.fill(0); G.bestSc.fill(0);
+  G.ch=0; G.qi=0; G.hp=3; G.chSc=0;
+  document.getElementById('mpPlayer').textContent='👤 '+G.name;
+  _hideSaveInfo();
+  renderMap(); show('sm');
   startMusic();
 }
 
 function switchPlayer(){
-  G.name='';G.totSc=0;G.ch=0;G.qi=0;G.hp=3;G.chSc=0;
-  G.done.fill(false);G.stars.fill(0);G.bestSc.fill(0);
+  G.name=''; G.totSc=0; G.ch=0; G.qi=0; G.hp=3; G.chSc=0;
+  G.done.fill(false); G.stars.fill(0); G.bestSc.fill(0);
   document.getElementById('inp').value='';
-  document.getElementById('btnContinue').style.display='none';
+  _hideSaveInfo();
   show('sw');
+}
+
+function continueGame(){
+  document.getElementById('mpPlayer').textContent='👤 '+G.name;
+  renderMap(); show('sm');
+  startMusic();
 }
 
 function updateScoreDisplay(){
@@ -791,8 +902,6 @@ function onCfm(){
     const el=document.getElementById('gScoreTot');
     el.style.transform='scale(1.4)';el.style.transition='transform .15s';
     setTimeout(()=>{el.style.transform='scale(1)';},150);
-    // อัพเดท ranking realtime ทันทีทุกครั้งที่ตอบถูก
-    saveScore();
     showFB('✅');ptcl(['⭐','✨','🌟'],6);playSnd('ok');
   } else {
     G.hp--;
@@ -822,6 +931,7 @@ function endCh(){
   document.getElementById('ccMsg').textContent=msgs[st-1];
   ptcl(['🎉','⭐','🏴‍☠️'],8);
   saveScore();
+  saveProgress();
   if(G.ch===6){
     setTimeout(()=>{document.getElementById('vSc').textContent=G.totSc;show('sv');},600);
   } else {
@@ -1171,6 +1281,8 @@ async function loadLB(){
   document.getElementById('inp').addEventListener('keydown',e=>{
     if(e.key==='Enter') startGame();
   });
+  // Save info on name input
+  document.getElementById('inp').addEventListener('input', onNameInput);
   show('sw');
 })();
 </script>
